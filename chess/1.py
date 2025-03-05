@@ -37,6 +37,8 @@ class View:
         self.black_check = False
         self.white_check = False
         
+        self.knight_dir = [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)]
+        
         self.Update_Array()
 
         self.root = tkinter.Tk()
@@ -157,7 +159,7 @@ class View:
         self.clicked_x = event.x // self.square_size
         self.clicked_y = event.y // self.square_size
         self.clicked = True
-        self.Is_white_king_at_check()
+        # self.Is_white_king_at_check()
         # self.Is_black_king_at_check() # doesnt work yet
         
         self.canvas.coords(f"({self.clicked_x},{self.clicked_y})", event.x,event.y)
@@ -165,8 +167,7 @@ class View:
             white(self.clicked_y, self.clicked_x, True)
             
         if (self.clicked_y, self.clicked_x) in self.black_pieces_pos:
-            AI("black")
-            
+            AI("black")            
             
     def on_release(self, event):
         self.release_x = event.x // self.square_size
@@ -245,7 +246,7 @@ class AI:
         self.evaluations = 0
         board_key = 0
         
-        scores_info = self.Minimax(parent, 0, 4, view.board, -math.inf, math.inf, board_key)
+        scores_info = self.Minimax(parent, 0, 5, view.board, -math.inf, math.inf, board_key)
  
         elapsed_time = time.time() - start_time
         print (elapsed_time, self.evaluations)
@@ -297,7 +298,7 @@ class AI:
                     new_board[move_to_pos] = piece_name
                     
                     board_key_now = hashing.compute_board_hash(piece_name, move_to_pos) 
-
+                    
                     board_key += board_key_now
                     if board_key not in self.tranpositions_dic:
                         # evaluate
@@ -340,9 +341,7 @@ class AI:
         
     def Evaluate(self, board):
         score = 0
-
-        self.evaluations += 1
-
+        self.evaluations+=1
         for piece in board.flatten():
             if piece != "":
                 score += self.piece_weight_dic[piece]
@@ -545,17 +544,16 @@ class Pawns:
             self.direction = 1
             if clicked_y == 1 and parent == "black":
                 self.is_at_start = True
+        if self.to_highlight == True:
+            self.Highlight_squares(clicked_y, clicked_x)  
             
-        self.Highlight_squares(clicked_y, clicked_x)            
+        self.valid_moves = self.Get_Valid_moves(clicked_y, clicked_x, view.board)          
     
     def Highlight_squares(self, clicked_y, clicked_x):
-        self.valid_moves = self.Get_Valid_moves(clicked_y, clicked_x, view.board)
-        
-        if self.to_highlight == True:
-            for x in range(self.view.board.shape[1]):
-                for y in range(self.view.board.shape[0]):
-                    if (y,x) in self.valid_moves:
-                        self.view.canvas.itemconfig(f"{y},{x}", fill = "#FF6666" if self.clicked == True else "#e75480" if (x+y) % 2 == 1 else "Pink")
+        for x in range(self.view.board.shape[1]):
+            for y in range(self.view.board.shape[0]):
+                if (y,x) in self.valid_moves:
+                    self.view.canvas.itemconfig(f"{y},{x}", fill = "#FF6666" if self.clicked == True else "#e75480" if (x+y) % 2 == 1 else "Pink")
 
     def Get_Valid_moves(self, clicked_y, clicked_x, board):
         valid_moves = []
@@ -563,14 +561,12 @@ class Pawns:
         # forward movement 
         to_move_front_coord = clicked_y + self.direction
         if 0 <= to_move_front_coord < 8:
-            if self.is_at_start == True:
-                if board[to_move_front_coord, clicked_x] == "":
-                    valid_moves.append((to_move_front_coord, clicked_x))
-                    if board[to_move_front_coord + self.direction, clicked_x] == "":
-                        valid_moves.append((to_move_front_coord + self.direction, clicked_x))
-            elif self.is_at_start == False:
-                if board[to_move_front_coord, clicked_x] == "":
-                    valid_moves.append((to_move_front_coord, clicked_x))
+            is_front_square_empty = (board[to_move_front_coord, clicked_x] == "")
+            if is_front_square_empty:
+                valid_moves.append((to_move_front_coord, clicked_x))
+                if board[to_move_front_coord + self.direction, clicked_x] == "" and self.is_at_start == True:
+                    valid_moves.append((to_move_front_coord + self.direction, clicked_x))
+            
                 
         # capturing
         for dir in [-1, 1]:
@@ -602,8 +598,6 @@ class Knights:
         self.parent = parent
         self.oposite_colour = "w" if parent == "black" else "b"
         
-        self.directions = [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)]
-        
         self.Highlight_squares(clicked_y, clicked_x)            
     
     def Highlight_squares(self, clicked_y, clicked_x):
@@ -618,15 +612,15 @@ class Knights:
     def Get_Valid_moves(self, clicked_y, clicked_x, board):
         valid_moves = []
         
-        for dir in self.directions:
-            y = clicked_y - dir[0]
-            x = clicked_x - dir[1]
+        for dy, dx in view.knight_dir:
+            y = clicked_y - dy
+            x = clicked_x - dx
             
             if 0 <= y < board.shape[0] and 0 <= x < board.shape[1]:
-                if board[y, x] == "":
+                move_to_piece_name = board[y, x]
+                if move_to_piece_name == "" or move_to_piece_name[0] == self.oposite_colour:
                     valid_moves.append((y, x))
-                elif board[y, x][0] == self.oposite_colour:
-                    valid_moves.append((y, x))
+                
                 
         # adjust valid_moves so that if the king is in check it cannot move somewhere where he remains in check
         if self.called_from != "check_class":
@@ -666,7 +660,7 @@ class Bishops:
     def Get_Valid_moves(self, clicked_y, clicked_x, board):
         valid_moves = []
         
-        for a in range(1, board.shape[0]): # up left
+        for a in range(1, min(clicked_x+1, clicked_y+1)): # up left
             y = clicked_y - a
             x = clicked_x - a
             
@@ -679,7 +673,7 @@ class Bishops:
                     valid_moves.append((y, x))
                     break
                 
-        for a in range(1, board.shape[0]): # up right
+        for a in range(1, min(clicked_y+1, 9-clicked_x)): # up right
             y = clicked_y - a
             x = clicked_x + a
             
@@ -692,7 +686,7 @@ class Bishops:
                     valid_moves.append((y, x))
                     break
                 
-        for a in range(1, view.board.shape[0]): # down left
+        for a in range(1, min(9-clicked_y, clicked_x+1)): # down left
             y = clicked_y + a
             x = clicked_x - a
             
@@ -705,7 +699,7 @@ class Bishops:
                     valid_moves.append((y, x))
                     break
                 
-        for a in range(1, board.shape[0]): # down right
+        for a in range(1, min(9-clicked_y, 9-clicked_x)): # down right
             y = clicked_y + a
             x = clicked_x + a
             
@@ -756,55 +750,59 @@ class Rooks:
     def Get_Valid_moves(self, clicked_y, clicked_x, board):
         valid_moves = []
         
-        for a in range(1, board.shape[0]): # up 
+        for a in range(1, clicked_y + 1): # up 
             y = clicked_y - a
             x = clicked_x 
             
             if 0 <= y < board.shape[0] and 0 <= x < board.shape[1]:
-                if board[y, x] == "":
+                to_move_piece_name = board[y, x]
+                if to_move_piece_name == "":
                     valid_moves.append((y, x))
-                elif board[y, x][0] == self.colour:
+                elif to_move_piece_name[0] == self.colour:
                     break
-                elif board[y, x][0] == self.oposite_colour:
+                elif to_move_piece_name[0] == self.oposite_colour:
                     valid_moves.append((y, x))
                     break
                 
-        for a in range(1, board.shape[0]): # right
+        for a in range(1, 9-clicked_x): # right
             y = clicked_y 
             x = clicked_x + a
             
             if 0 <= y < board.shape[0] and 0 <= x < board.shape[1]:
-                if board[y, x] == "":
+                to_move_piece_name = board[y, x]
+                if to_move_piece_name == "":
                     valid_moves.append((y, x))
-                elif board[y, x][0] == self.colour:
+                elif to_move_piece_name[0] == self.colour:
                     break
-                elif board[y, x][0] == self.oposite_colour:
+                elif to_move_piece_name[0] == self.oposite_colour:
                     valid_moves.append((y, x))
                     break
                 
-        for a in range(1, board.shape[0]): # down
+        for a in range(1, 9-clicked_y): # down
             y = clicked_y + a
             x = clicked_x 
             
             if 0 <= y < board.shape[0] and 0 <= x < board.shape[1]:
-                if board[y, x] == "":
+                to_move_piece_name = board[y, x]
+                if to_move_piece_name == "":
                     valid_moves.append((y, x))
-                elif board[y, x][0] == self.colour:
+                elif to_move_piece_name[0] == self.colour:
                     break
-                elif board[y, x][0] == self.oposite_colour:
+                elif to_move_piece_name[0] == self.oposite_colour:
                     valid_moves.append((y, x))
                     break
                 
-        for a in range(1, board.shape[0]): # left
+        for a in range(1, clicked_x+1): # left
             y = clicked_y
             x = clicked_x - a
             
             if 0 <= y < board.shape[0] and 0 <= x < board.shape[1]:
-                if board[y, x] == "":
+                to_move_piece_name = board[y, x]
+                if to_move_piece_name == "":
                     valid_moves.append((y, x))
-                elif board[y, x][0] == self.colour:
+                elif to_move_piece_name[0] == self.colour:
                     break
-                elif board[y, x][0] == self.oposite_colour:
+                elif to_move_piece_name[0] == self.oposite_colour:
                     valid_moves.append((y, x))
                     break
         
