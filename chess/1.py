@@ -230,13 +230,32 @@ class AI:
             "b_king": 100 if parent == "white" else 1000,
         }
         
+        self.white_pawn_class = Pawns(0, 0, "white", True, False, "ai")
+        self.white_knight_class = Knights(0, 0, "white", True, False, "ai")
+        self.white_bishop_class = Bishops(0, 0, "white", True, False, "ai")
+        self.white_rook_class = Rooks(0, 0, "white", True, False, "ai")
+        self.white_king_class = King(0, 0, "white", True, False, "ai")
+        
+        self.black_pawn_class = Pawns(0, 0, "black", True, False, "ai")
+        self.black_knight_class = Knights(0, 0, "black", True, False, "ai")
+        self.black_bishop_class = Bishops(0, 0, "black", True, False, "ai")
+        self.black_rook_class = Rooks(0, 0, "black", True, False, "ai")
+        self.black_king_class = King(0, 0, "black", True, False, "ai")
+        
         self.piece_classes_dic = {
-            "pawn": [Pawns],
-            "rook": [Rooks],
-            "knight": [Knights],
-            "bishop": [Bishops],
-            "queen" : [Rooks, Bishops],
-            "king": [King]
+            "w_pawn": [self.white_pawn_class],
+            "w_rook": [self.white_rook_class],
+            "w_knight": [self.white_knight_class],
+            "w_bishop": [self.white_bishop_class],
+            "w_queen" : [self.white_rook_class, self.white_bishop_class],
+            "w_king": [self.white_king_class],
+            
+            "b_pawn": [self.black_pawn_class],
+            "b_rook": [self.black_rook_class],
+            "b_knight": [self.black_knight_class],
+            "b_bishop": [self.black_bishop_class],
+            "b_queen" : [self.black_rook_class, self.black_bishop_class],
+            "b_king": [self.black_king_class]
         }
 
         self.tranpositions_dic = {}
@@ -245,6 +264,8 @@ class AI:
         start_time = time.time()
         self.evaluations = 0
         board_key = 0
+        
+
         
         scores_info = self.Minimax(parent, 0, 5, view.board, -math.inf, math.inf, board_key)
  
@@ -256,7 +277,7 @@ class AI:
         # figures out the best move to make
         max_score = -math.inf if parent == "black" else math.inf
         piece_to_move_info = [] 
-        for score in scores_info:
+        for score in scores_info: # decides what move to do based on scores
             print(score)
             if (score[3] > max_score) if parent == "black" else (score[3] < max_score):
                 piece_to_move_info = score[:3]
@@ -282,12 +303,11 @@ class AI:
         for index, piece_name in enumerate(board.flatten()): # iterates over the whole board
             if piece_name != "" and piece_name[0] == parent[0]: # if the colour of the piece is same as the parent
                 piece_start_pos = (index // board.shape[0], index - ((index // board.shape[0])*8)) # calculates the coords of the piece
-                piece_classes = self.piece_classes_dic[piece_name[2:]] # gets the class of that piece for queen both of the classes
+                piece_classes = self.piece_classes_dic[piece_name] # gets the class instance of that piece for queen both of the classes
                 valid_moves = []
 
                 for piece_class in piece_classes:
-                    piece_instance = piece_class(piece_start_pos[0], piece_start_pos[1], parent, True, False, "ai") # initiates the class
-                    valid_moves += piece_instance.Get_Valid_moves(piece_start_pos[0], piece_start_pos[1], board) # gets the valid moves of that piece
+                    valid_moves += piece_class.Get_Valid_moves(piece_start_pos[0], piece_start_pos[1], board) # gets the valid moves of that piece
             
                         
                 for move_to_pos in valid_moves:
@@ -544,10 +564,12 @@ class Pawns:
             self.direction = 1
             if clicked_y == 1 and parent == "black":
                 self.is_at_start = True
+                
+        self.valid_moves = self.Get_Valid_moves(clicked_y, clicked_x, view.board)
         if self.to_highlight == True:
             self.Highlight_squares(clicked_y, clicked_x)  
             
-        self.valid_moves = self.Get_Valid_moves(clicked_y, clicked_x, view.board)          
+                  
     
     def Highlight_squares(self, clicked_y, clicked_x):
         for x in range(self.view.board.shape[1]):
@@ -557,6 +579,12 @@ class Pawns:
 
     def Get_Valid_moves(self, clicked_y, clicked_x, board):
         valid_moves = []
+        if (self.parent == "black" and clicked_y == 1):
+            self.is_at_start = True
+        elif (self.parent == "white" and clicked_y == 6):
+            self.is_at_start = True
+        else:
+            self.is_at_start = False
         
         # forward movement 
         to_move_front_coord = clicked_y + self.direction
@@ -564,8 +592,9 @@ class Pawns:
             is_front_square_empty = (board[to_move_front_coord, clicked_x] == "")
             if is_front_square_empty:
                 valid_moves.append((to_move_front_coord, clicked_x))
-                if board[to_move_front_coord + self.direction, clicked_x] == "" and self.is_at_start == True:
-                    valid_moves.append((to_move_front_coord + self.direction, clicked_x))
+                if self.is_at_start == True:
+                    if board[to_move_front_coord + self.direction, clicked_x] == "":
+                        valid_moves.append((to_move_front_coord + self.direction, clicked_x))
             
                 
         # capturing
