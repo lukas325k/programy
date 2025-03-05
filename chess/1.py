@@ -4,8 +4,11 @@ import time
 import math
 from copy import deepcopy
 from random import randint
+from board_hashing import Hashing
+hashing = Hashing()
 
 subor = open("test.txt", "w")
+
 
 class View:
     def __init__(self):
@@ -164,12 +167,14 @@ class View:
         if (self.clicked_y, self.clicked_x) in self.black_pieces_pos:
             AI("black")
             
+            
     def on_release(self, event):
         self.release_x = event.x // self.square_size
         self.release_y = event.y // self.square_size
         
         self.clicked = False
         white(self.clicked_y, self.clicked_x, False)
+        
         
         self.Update_Board()
         
@@ -214,14 +219,14 @@ class AI:
             "w_knight": -3.5,
             "w_bishop": -3,
             "w_queen": -9,
-            "w_king": -100 if parent == "black" else -10000000,
+            "w_king": -100 if parent == "black" else -1000,
             
             "b_pawn": 1,
             "b_rook": 5,
             "b_knight": 3.5,
             "b_bishop": 3,
             "b_queen": 9,
-            "b_king": 100 if parent == "white" else 10000000,
+            "b_king": 100 if parent == "white" else 1000,
         }
         
         self.piece_classes_dic = {
@@ -238,8 +243,9 @@ class AI:
         
         start_time = time.time()
         self.evaluations = 0
+        board_key = 0
         
-        scores_info = self.Minimax(parent, 0, 5, view.board, -math.inf, math.inf)
+        scores_info = self.Minimax(parent, 0, 4, view.board, -math.inf, math.inf, board_key)
  
         elapsed_time = time.time() - start_time
         print (elapsed_time, self.evaluations)
@@ -269,7 +275,7 @@ class AI:
         
         
 
-    def Minimax(self, parent, current_depth, max_depth, board, alpha, beta):
+    def Minimax(self, parent, current_depth, max_depth, board, alpha, beta, board_key):
         current_depth += 1
         scores = []
         for index, piece_name in enumerate(board.flatten()): # iterates over the whole board
@@ -277,7 +283,7 @@ class AI:
                 piece_start_pos = (index // board.shape[0], index - ((index // board.shape[0])*8)) # calculates the coords of the piece
                 piece_classes = self.piece_classes_dic[piece_name[2:]] # gets the class of that piece for queen both of the classes
                 valid_moves = []
-                
+
                 for piece_class in piece_classes:
                     piece_instance = piece_class(piece_start_pos[0], piece_start_pos[1], parent, True, False, "ai") # initiates the class
                     valid_moves += piece_instance.Get_Valid_moves(piece_start_pos[0], piece_start_pos[1], board) # gets the valid moves of that piece
@@ -290,23 +296,23 @@ class AI:
                     new_board[piece_start_pos] = ""
                     new_board[move_to_pos] = piece_name
                     
-                    board_key = new_board.tobytes() + current_depth.to_bytes(2, byteorder='little', signed=True)
-                    
+                    board_key_now = hashing.compute_board_hash(piece_name, move_to_pos) 
+
+                    board_key += board_key_now
                     if board_key not in self.tranpositions_dic:
                         # evaluate
                         if current_depth == 1: 
-                            scores.append([piece_name, piece_start_pos, move_to_pos, self.Minimax("white" if parent == "black" else "black", current_depth, max_depth, new_board, alpha, beta)])
+                            scores.append([piece_name, piece_start_pos, move_to_pos, self.Minimax("white" if parent == "black" else "black", current_depth, max_depth, new_board, alpha, beta, board_key)])
                         elif current_depth != max_depth:
-                            scores.append(self.Minimax("white" if parent == "black" else "black", current_depth, max_depth, new_board, alpha,  beta))
+                            scores.append(self.Minimax("white" if parent == "black" else "black", current_depth, max_depth, new_board, alpha,  beta, board_key))
                         elif current_depth == max_depth:
                             scores.append(self.Evaluate(new_board))
                             
                         self.tranpositions_dic[board_key] = scores[-1]
                     else:
                         scores.append(self.tranpositions_dic[board_key])
-                            
-
-
+                       
+                    board_key -= board_key_now
                         
                     # bubiiiik dance dd yellow hihihihihihi
                     # reverse the move
@@ -931,3 +937,4 @@ if __name__ == "__main__":
     view = View()
 
     view.root.mainloop()
+
