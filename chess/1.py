@@ -7,8 +7,6 @@ from random import randint
 from board_hashing import Hashing
 hashing = Hashing()
 
-subor = open("test.txt", "w")
-
 
 class View:
     def __init__(self):
@@ -37,7 +35,7 @@ class View:
         self.black_check = False
         self.white_check = False
         
-        self.knight_dir = [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)]
+        
         
         self.Update_Array()
 
@@ -69,11 +67,13 @@ class View:
         self.black_king = tkinter.PhotoImage(file="/Users/lukaskocman/programy/chess/pieces-basic-png/black-king.png")
         
     def Update_Board(self):
+        self.Detect_pawn_promotions()
         self.Update_Array()
         
         self.canvas.delete("ball")
         
         self.Update_colour_all_positions()
+        
         
         piece_type_dic = {       
             "w_pawn": self.white_pawn,
@@ -103,6 +103,17 @@ class View:
                                         image=piece_type_dic[piece],
                                         tags = (f"({x},{y})", "ball"))
         self.canvas.update()
+   
+    def Detect_pawn_promotions(self):
+        for i, coord in enumerate(self.white_pawns_pos):
+            if coord[0] == 0:
+                self.white_queen_pos.append(coord)
+                del self.white_pawns_pos[i]
+                
+        for i, coord in enumerate(self.black_pawns_pos):
+            if coord[0] == 0:
+                self.black_queen_pos.append(coord)
+                del self.black_pawns_pos[i]
    
     def Update_colour_all_positions(self):
         self.white_pieces_pos = []
@@ -161,7 +172,7 @@ class View:
         self.clicked = True
         # self.Is_white_king_at_check()
         # self.Is_black_king_at_check() # doesnt work yet
-        
+        #  
         self.canvas.coords(f"({self.clicked_x},{self.clicked_y})", event.x,event.y)
         if (self.clicked_y, self.clicked_x) in self.white_pieces_pos:
             white(self.clicked_y, self.clicked_x, True)
@@ -230,17 +241,7 @@ class AI:
             "b_king": 100 if parent == "white" else 1000,
         }
         
-        self.white_pawn_class = Pawns(0, 0, "white", True, False, "ai")
-        self.white_knight_class = Knights(0, 0, "white", True, False, "ai")
-        self.white_bishop_class = Bishops(0, 0, "white", True, False, "ai")
-        self.white_rook_class = Rooks(0, 0, "white", True, False, "ai")
-        self.white_king_class = King(0, 0, "white", True, False, "ai")
-        
-        self.black_pawn_class = Pawns(0, 0, "black", True, False, "ai")
-        self.black_knight_class = Knights(0, 0, "black", True, False, "ai")
-        self.black_bishop_class = Bishops(0, 0, "black", True, False, "ai")
-        self.black_rook_class = Rooks(0, 0, "black", True, False, "ai")
-        self.black_king_class = King(0, 0, "black", True, False, "ai")
+        self.Load_classes()
         
         self.piece_classes_dic = {
             "w_pawn": [self.white_pawn_class],
@@ -267,7 +268,7 @@ class AI:
         
 
         
-        scores_info = self.Minimax(parent, 0, 5, view.board, -math.inf, math.inf, board_key)
+        scores_info = self.Minimax(parent, 0, 4, view.board, -math.inf, math.inf, board_key)
  
         elapsed_time = time.time() - start_time
         print (elapsed_time, self.evaluations)
@@ -294,12 +295,27 @@ class AI:
         piece_positions[piece_positions.index(piece_to_move_info[1])] = piece_to_move_info[2]
         view.Update_Board()
 
+    def Load_classes(self):
+        self.white_pawn_class = Pawns(0, 0, "white", True, False, "ai")
+        self.white_knight_class = Knights(0, 0, "white", True, False, "ai")
+        self.white_bishop_class = Bishops(0, 0, "white", True, False, "ai")
+        self.white_rook_class = Rooks(0, 0, "white", True, False, "ai")
+        self.white_king_class = King(0, 0, "white", True, False, "ai")
+        
+        self.black_pawn_class = Pawns(7, 7, "black", True, False, "ai")
+        self.black_knight_class = Knights(7, 7, "black", True, False, "ai")
+        self.black_bishop_class = Bishops(7, 7, "black", True, False, "ai")
+        self.black_rook_class = Rooks(7, 7, "black", True, False, "ai")
+        self.black_king_class = King(7, 7, "black", True, False, "ai")
+
         
         
 
     def Minimax(self, parent, current_depth, max_depth, board, alpha, beta, board_key):
         current_depth += 1
         scores = []
+        
+        
         for index, piece_name in enumerate(board.flatten()): # iterates over the whole board
             if piece_name != "" and piece_name[0] == parent[0]: # if the colour of the piece is same as the parent
                 piece_start_pos = (index // board.shape[0], index - ((index // board.shape[0])*8)) # calculates the coords of the piece
@@ -600,7 +616,7 @@ class Pawns:
         # capturing
         for dir in [-1, 1]:
             to_move_side_coord = clicked_x + dir
-            if 0 <= to_move_side_coord < board.shape[1]:
+            if 0 <= to_move_side_coord < board.shape[1] and 0 <= to_move_front_coord < 8:
                 if board[to_move_front_coord, to_move_side_coord] != "" and  board[to_move_front_coord, to_move_side_coord][0] == self.oposite_colour:
                     valid_moves.append((to_move_front_coord, to_move_side_coord))
                     
@@ -626,6 +642,7 @@ class Knights:
         self.called_from = called_from
         self.parent = parent
         self.oposite_colour = "w" if parent == "black" else "b"
+        self.knight_dir = [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)]
         
         self.Highlight_squares(clicked_y, clicked_x)            
     
@@ -641,7 +658,7 @@ class Knights:
     def Get_Valid_moves(self, clicked_y, clicked_x, board):
         valid_moves = []
         
-        for dy, dx in view.knight_dir:
+        for dy, dx in self.knight_dir:
             y = clicked_y - dy
             x = clicked_x - dx
             
@@ -764,7 +781,6 @@ class Rooks:
         self.called_from = called_from
         self.oposite_colour = "w" if parent == "black" else "b"
         self.colour = "b" if parent == "black" else "w"
-        
         self.Highlight_squares(clicked_y, clicked_x)            
 
     def Highlight_squares(self, clicked_y, clicked_x):
@@ -964,4 +980,5 @@ if __name__ == "__main__":
     view = View()
 
     view.root.mainloop()
+
 
