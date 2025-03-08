@@ -4,8 +4,9 @@ import time
 import math
 from copy import deepcopy
 from random import randint
-from board_hashing import Hashing
-hashing = Hashing()
+import hashlib
+
+subor = open("text.txt", "w", encoding="utf8")
 
 
 class View:
@@ -16,6 +17,8 @@ class View:
         self.clicked = False
         self.white_can_castle_left = True
         self.white_can_castle_right = True
+        self.black_can_castle_left = True
+        self.black_can_castle_right = True
 
         self.white_pieces_pos = [(y,x) for x in range(8) for y in range(6,8)]
         self.white_pawns_pos = [(6,x) for x in range(8)]
@@ -111,7 +114,7 @@ class View:
                 del self.white_pawns_pos[i]
                 
         for i, coord in enumerate(self.black_pawns_pos):
-            if coord[0] == 0:
+            if coord[0] == 7:
                 self.black_queen_pos.append(coord)
                 del self.black_pawns_pos[i]
    
@@ -266,9 +269,14 @@ class AI:
         self.evaluations = 0
         board_key = 0
         
+        self.simulation_black_castle_left = view.black_can_castle_left
+        self.simulation_black_castle_right = view.black_can_castle_right
+        self.simulation_white_castle_left = view.white_can_castle_left
+        self.simulation_white_castle_right = view.white_can_castle_right
+        
 
         
-        scores_info = self.Minimax(parent, 0, 4, view.board, -math.inf, math.inf, board_key)
+        scores_info = self.Minimax(parent, 0, 5, view.board, -math.inf, math.inf, board_key)
  
         elapsed_time = time.time() - start_time
         print (elapsed_time, self.evaluations)
@@ -288,12 +296,55 @@ class AI:
                 if to_move_rand == 1:
                     max_score = score[3]
                     piece_to_move_info = score[:3]
+                    
+        # castling check
+        self.castling_logic(parent, piece_to_move_info) 
+                    
                 
         # do the move on the real board
         self.delet_if_captured_for_real(piece_to_move_info[2])    
         piece_positions = self.piece_positions_dic[piece_to_move_info[0]]
         piece_positions[piece_positions.index(piece_to_move_info[1])] = piece_to_move_info[2]
         view.Update_Board()
+
+    def castling_logic(self, parent, piece_to_move_info):
+        if parent == "white":            
+            if view.white_can_castle_right == True: # castle right
+                if piece_to_move_info[2] == (7,6): #coords for right castling
+                    view.white_rooks_pos[view.white_rooks_pos.index((7, 7))] = (7,5) 
+                    
+            if view.white_can_castle_left == True: # castle left
+                if piece_to_move_info[2] == (7,2): #coords for left castling
+                    view.white_rooks_pos[view.white_rooks_pos.index((7, 0))] = (7,3) 
+        elif parent == "black":            
+            if view.black_can_castle_right == True: # castle right
+                if piece_to_move_info[2] == (0,6): #coords for right castling
+                    view.black_rooks_pos[view.black_rooks_pos.index((0, 7))] = (0,5) 
+                    
+            if view.black_can_castle_left == True: # castle left
+                if piece_to_move_info[2] == (0,2): #coords for left castling
+                    view.black_rooks_pos[view.black_rooks_pos.index((0, 0))] = (0,3)
+        
+        
+        if parent == "white" and piece_to_move_info[0] == "w_king":
+            view.white_can_castle_left, view.white_can_castle_right = False, False
+        elif parent == "black" and piece_to_move_info[0] == "b_king":
+            view.black_can_castle_left, view.black_can_castle_right = False, False
+            
+        if parent == "black":
+            if piece_to_move_info[0] == "b_rook": # rooks check
+                if piece_to_move_info[1] == (0,0): # left castling
+                    view.black_can_castle_left = False
+                elif piece_to_move_info[1] == (0,7): # right castling
+                    view.black_can_castle_right = False
+        elif parent == "white":
+            if piece_to_move_info[0] == "w_rook": # rooks check
+                if piece_to_move_info[1] == (7,0): # left castling
+                    view.black_can_castle_left = False
+                elif piece_to_move_info[1] == (7,7): # right castling
+                    view.black_can_castle_right = False
+                    
+        
 
     def Load_classes(self):
         self.white_pawn_class = Pawns(0, 0, "white", True, False, "ai")
@@ -323,24 +374,62 @@ class AI:
                 valid_moves = []
 
                 for piece_class in piece_classes:
-                    valid_moves += piece_class.Get_Valid_moves(piece_start_pos[0], piece_start_pos[1], board) # gets the valid moves of that piece
+                    valid_moves.extend(piece_class.Get_Valid_moves(piece_start_pos[0], piece_start_pos[1], board)) # gets the valid moves of that piece
             
                         
                 for move_to_pos in valid_moves:
                     new_board = deepcopy(board)
+                    
+                    # check if the move is castling and if yes then move the rook
+                    castling_info = []
+                    if parent == "black":
+                        if move_to_pos == (0,6) and piece_start_pos == (0,4): # castle right
+                            if self.simulation_black_castle_right == True:
+                                if new_board[0,7] == "b_rook":
+                                    self.simulation_black_castle_right = False
+                                    new_board[0,7] = ""
+                                    new_board[0,5] = "b_rook"
+                                    castling_info = [(0,7), (0,5), self.simulation_black_castle_right, "b_rook"]
+                        if move_to_pos == (0,2) and piece_start_pos == (0,4): # castle left
+                            if self.simulation_black_castle_left == True:
+                                if new_board[0,0] == "b_rook":
+                                    self.simulation_black_castle_right = False
+                                    new_board[0,0] = ""
+                                    new_board[0,3] = "b_rook"
+                                    castling_info = [(0,0), (0,3), self.simulation_black_castle_left, "b_rook"]
+                    if parent == "white":
+                        if move_to_pos == (7,6) and piece_start_pos == (7,4): # castle right
+                            if self.simulation_white_castle_right == True:
+                                if new_board[7,7] == "w_rook":
+                                    self.simulation_white_castle_right = False
+                                    new_board[7,7] = ""
+                                    new_board[7,5] = "w_rook"
+                                    castling_info = [(7,7), (7,5), self.simulation_white_castle_right, "w_rook"]
+                        if move_to_pos == (7,2) and piece_start_pos == (7,4): # castle left
+                            if self.simulation_white_castle_left == True:
+                                if new_board[7,0] == "w_rook":
+                                    self.simulation_black_castle_right = False
+                                    new_board[7,0] = ""
+                                    new_board[7,3] = "w_rook"
+                                    castling_info = [(7,0), (7,3), self.simulation_white_castle_left, "w_rook"]
+                                
+                    
                     # do the move
                     deleted_info = self.delete_if_captured(move_to_pos, new_board) # captures and stores the name and the coord where it captured
                     new_board[piece_start_pos] = ""
-                    new_board[move_to_pos] = piece_name
+                    if move_to_pos[0] == (0 if parent == "white" else 7) and piece_name[2:] == "pawn": # promotion logic
+                        new_board[move_to_pos] = f"{parent[0]}_queen" 
+                    else:
+                        new_board[move_to_pos] = piece_name
+
+
                     
-                    board_key_now = hashing.compute_board_hash(piece_name, move_to_pos) 
-                    
-                    board_key += board_key_now
-                    if board_key not in self.tranpositions_dic:
+                    board_key =  hashlib.sha256(new_board.tobytes() + current_depth.to_bytes(1, byteorder='little', signed=True)).hexdigest()
+                    if current_depth == 1: 
+                        scores.append([piece_name, piece_start_pos, move_to_pos, self.Minimax("white" if parent == "black" else "black", current_depth, max_depth, new_board, alpha, beta, board_key)]) 
+                    elif board_key not in self.tranpositions_dic:
                         # evaluate
-                        if current_depth == 1: 
-                            scores.append([piece_name, piece_start_pos, move_to_pos, self.Minimax("white" if parent == "black" else "black", current_depth, max_depth, new_board, alpha, beta, board_key)])
-                        elif current_depth != max_depth:
+                        if current_depth != max_depth:
                             scores.append(self.Minimax("white" if parent == "black" else "black", current_depth, max_depth, new_board, alpha,  beta, board_key))
                         elif current_depth == max_depth:
                             scores.append(self.Evaluate(new_board))
@@ -349,19 +438,25 @@ class AI:
                     else:
                         scores.append(self.tranpositions_dic[board_key])
                        
-                    board_key -= board_key_now
                         
                     # bubiiiik dance dd yellow hihihihihihi
                     # reverse the move
                     new_board[piece_start_pos] = piece_name
                     new_board[move_to_pos] = ""
-                    if deleted_info:
+                    if deleted_info != None:
                         new_board[deleted_info[1]] = deleted_info[0]
+                        
+                    # reverse the castling
+                    if castling_info != []:
+                        castling_info[2] = True
+                        new_board[castling_info[0]] = castling_info[3]
+                        new_board[castling_info[1]] = ""
                         
                     if parent == "black" and current_depth != 1:
                         alpha = max(alpha, max(scores))
                     elif parent == "white" and current_depth != 1:
                         beta = min(beta, min(scores))
+
                         
                     if beta <= alpha:
                         break
@@ -706,7 +801,7 @@ class Bishops:
     def Get_Valid_moves(self, clicked_y, clicked_x, board):
         valid_moves = []
         
-        for a in range(1, min(clicked_x+1, clicked_y+1)): # up left
+        for a in range(1, 8): # up left
             y = clicked_y - a
             x = clicked_x - a
             
@@ -719,7 +814,7 @@ class Bishops:
                     valid_moves.append((y, x))
                     break
                 
-        for a in range(1, min(clicked_y+1, 9-clicked_x)): # up right
+        for a in range(1, 8): # up right
             y = clicked_y - a
             x = clicked_x + a
             
@@ -732,7 +827,7 @@ class Bishops:
                     valid_moves.append((y, x))
                     break
                 
-        for a in range(1, min(9-clicked_y, clicked_x+1)): # down left
+        for a in range(1, 8): # down left
             y = clicked_y + a
             x = clicked_x - a
             
@@ -745,7 +840,7 @@ class Bishops:
                     valid_moves.append((y, x))
                     break
                 
-        for a in range(1, min(9-clicked_y, 9-clicked_x)): # down right
+        for a in range(1, 8): # down right
             y = clicked_y + a
             x = clicked_x + a
             
@@ -757,17 +852,7 @@ class Bishops:
                 elif board[y, x][0] == self.oposite_colour:
                     valid_moves.append((y, x))
                     break
-                
-        # adjust valid_moves so that if the king is in check it cannot move somewhere where he remains in check
-        if self.called_from != "check_class":
-            if (view.white_check if self.parent == "white" else view.black_check) == True: 
-                filtered_valid_moves = []
-                Check_class = Check_check(self.parent)
-                checks_coords = Check_class.to_inerupt_check_coords
-                checks_coords = set(checks_coords)
-                filtered_valid_moves = [coord for coord in valid_moves if coord in checks_coords]
-                
-                return filtered_valid_moves
+
 
         return valid_moves   
            
@@ -850,17 +935,6 @@ class Rooks:
                 elif to_move_piece_name[0] == self.oposite_colour:
                     valid_moves.append((y, x))
                     break
-        
-        # adjust valid_moves so that if the king is in check it cannot move somewhere where he remains in check
-        if self.called_from != "check_class":
-            if (view.white_check if self.parent == "white" else view.black_check) == True: 
-                filtered_valid_moves = []
-                Check_class = Check_check(self.parent)
-                checks_coords = Check_class.to_inerupt_check_coords
-                checks_coords = set(checks_coords)
-                filtered_valid_moves = [coord for coord in valid_moves if coord in checks_coords]
-                
-                return filtered_valid_moves
 
         return valid_moves   
                
@@ -906,6 +980,11 @@ class King:
                 valid_moves.append((7,6))
             if view.white_can_castle_left == True and np.all(board[7, 1:4] == ""):
                 valid_moves.append((7,2))
+        elif self.parent == "black":
+            if view.black_can_castle_right == True and np.all(board[0, 5:7] == ""):
+                valid_moves.append((0,6))
+            if view.black_can_castle_left == True and np.all(board[0, 1:4] == ""):
+                valid_moves.append((0,2))
              
                 
 
